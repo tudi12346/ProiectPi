@@ -1,8 +1,13 @@
+import math
+from math import atan2
+
 import cv2
 import numpy as np
 import os
 
 # Create the directory structure
+from sklearn.metrics import pairwise
+
 if not os.path.exists("data"):
     os.makedirs("data")
     os.makedirs("data/train")
@@ -70,7 +75,64 @@ while True:
     skinRegionHSV = cv2.erode(skinRegionHSV, kernel, iterations=2)
     skinRegionHSV = cv2.dilate(skinRegionHSV, kernel, iterations=2)
     skinRegionHSV = cv2.GaussianBlur(skinRegionHSV, (3, 3), 0)
-    roi = cv2.resize(skinRegionHSV, (64, 64))
+
+    roi = cv2.resize(skinRegionHSV, (128, 128))
+
+    contours, hierarchy = cv2.findContours(roi, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    if contours:
+        contours = max(contours, key=lambda x: cv2.contourArea(x))
+
+        M = cv2.moments(roi)
+        r = int(M["m10"] / M["m00"])
+        c = int(M["m01"] / M["m00"])
+        convex = cv2.convexHull(contours, returnPoints=False)
+        defects = cv2.convexityDefects(contours, convex)
+
+        dist = []
+        points_start = []
+        points_far = []
+        for i in range(defects.shape[0]):
+            s, e, f, d = defects[i, 0]
+            points_start.append(contours[s][0])
+            points_far.append(contours[f][0])
+
+        points = []
+        for i in range(len(points_far)):
+            ok = True
+            for j in range(len(points_start)):
+                if pairwise.euclidean_distances([points_far[i]], Y=[points_start[j]])[0][0] < 30:
+                    ok = False
+            if ok:
+                points.append(points_far[i])
+
+        dist_max = 0
+        point1 = [0, 0]
+        point2 = [0, 0]
+        for i in range(len(points)):
+            if i == len(points) - 1:
+                if pairwise.euclidean_distances([points[i]], Y=[points[0]])[0][0] > dist_max:
+                    dist_max = pairwise.euclidean_distances([points[i]], Y=[points[0]])[0][0]
+                    point1 = points[i]
+                    point2 = points[0]
+            else:
+                if pairwise.euclidean_distances([points[i]], Y=[points[i + 1]])[0][0] > dist_max:
+                    dist_max = pairwise.euclidean_distances([points[i]], Y=[points[i + 1]])[0][0]
+                    point1 = points[i]
+                    point2 = points[i + 1]
+
+        if points:
+            pp = np.array(points)
+            pp = pp.reshape((-1, 1, 2))
+            cv2.fillPoly(roi, [pp], 0)
+
+            (h, w) = roi.shape[:2]
+            (cX, cY) = (w // 2, h // 2)
+
+            if point1[0] != point2[0]:
+                radian = atan2(point1[1] - point2[1], point1[0] - point2[0]) + math.pi
+                angle = radian * 180 / math.pi
+                M = cv2.getRotationMatrix2D((cX, cY), angle, 1.0)
+                roi = cv2.warpAffine(roi, M, (w, h))
 
     cv2.imshow("ROI", roi)
 
