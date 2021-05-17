@@ -55,10 +55,10 @@ test_set = test_datagen.flow_from_directory('data/test',
                                             class_mode='categorical')
 classifier.fit_generator(
     training_set,
-    steps_per_epoch=600,  # No of images in training set
+    steps_per_epoch=784,  # No of images in training set
     epochs=10,
     validation_data=test_set,
-    validation_steps=30)  # No of images in test set
+    validation_steps=28)  # No of images in test set
 
 # Saving the model
 model_json = classifier.to_json()

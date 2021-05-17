@@ -23,8 +23,6 @@ while True:
     # Simulating mirror image
     frame = cv2.flip(frame, 1)
 
-    # Got this from collect-data.py
-    # Coordinates of the ROI
     x1 = int(0.5 * frame.shape[1])
     y1 = 10
     x2 = frame.shape[1] - 10
@@ -34,11 +32,19 @@ while True:
     cv2.rectangle(frame, (x1 - 1, y1 - 1), (x2 + 1, y2 + 1), (255, 0, 0), 1)
     # Extracting the ROI
     roi = frame[y1:y2, x1:x2]
+    cv2.imshow("Frame", frame)
 
-    # Resizing the ROI so it can be fed to the model for prediction
-    roi = cv2.resize(roi, (64, 64))
-    roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    _, test_image = cv2.threshold(roi, 120, 255, cv2.THRESH_BINARY)
+    hsvim = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    lower = np.array([0, 48, 80], dtype="uint8")
+    upper = np.array([20, 255, 255], dtype="uint8")
+
+    skinRegionHSV = cv2.inRange(hsvim, lower, upper)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    skinRegionHSV = cv2.erode(skinRegionHSV, kernel, iterations=2)
+    skinRegionHSV = cv2.dilate(skinRegionHSV, kernel, iterations=2)
+    skinRegionHSV = cv2.GaussianBlur(skinRegionHSV, (3, 3), 0)
+    roi = cv2.resize(skinRegionHSV, (64, 64))
+    test_image = roi
     cv2.imshow("test", test_image)
     # Batch of 1
     result = loaded_model.predict(test_image.reshape(1, 64, 64, 1))
